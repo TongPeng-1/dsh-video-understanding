@@ -2,7 +2,20 @@
 
 给 DeepSeek Harness (DSH) 接入本地视频理解的 Windows MCP 服务。
 
-当前基线：Qwen3-VL-4B 视频分析 + faster-whisper small 语音转写，支持原始时间轴、异步任务、片段复看和公开媒体 URL。尚未提供关键帧图像交付，视觉分析当前会参考转写文本。后续升级会将视觉与语音拆分为独立证据，再补齐关键帧。
+统一交付三种证据：**独立视觉文字 + 独立语音转写 + 带时间戳的真实关键帧图片**，由 DSH 的决策模型综合判断。视频模型保持 Qwen3-VL-4B，语音模型保持 faster-whisper small。
+
+```text
+同一视频与原始时间轴
+  ├─ 无声视频 → Qwen3-VL → 动作、场景、颜色及事件文字
+  ├─ 音轨     → Whisper  → 配音文字与时间戳
+  └─ 原视频   → 关键帧   → RGB PNG 图片与原视频时间
+                     ↓
+     同一个 MCP 结果：两路独立文字 + 实际图片内容
+                     ↓
+           DSH 决策模型对照、核实、回答
+```
+
+视觉推理不接收 ASR 文本。CPU 语音转写可与 GPU 视频分析并行，结果按原视频时间轴对齐。语音和画面矛盾时，保留两份独立证据。视觉模型仍可能猜错，独立输入不等于保证结果正确。
 
 ## 环境
 
@@ -34,12 +47,20 @@ uv pip install --python .venv/Scripts/python.exe -r requirements.lock.txt
 | 工具 | 用途 |
 |---|---|
 | analyze_video | 提交本地视频或公开可下载的视频 URL |
-| get_video_job | 查询状态与分页结果 |
+| get_video_job | 一次取得两路文字、通道状态与最多 4 张真实 PNG 图片 |
 | inspect_video_segment | 复看指定原视频范围 |
 | cancel_video_job | 请求取消任务 |
 | video_runtime_status | 检查依赖和最近任务 |
 
 任务通过独立隐藏 Windows worker 执行，提交的 MCP 连接断开后仍可运行。GPU 任务串行，完成后卸载模型。单任务范围最多 30 分钟；复看最多 60 秒。默认 2 FPS、448 像素上限，无法保证瞬间动作、小字或逐帧时间精度。
+
+448 像素限制仅用于视频模型推理。关键帧从原视频重新解码，最长边最高 1280 像素，不放大小尺寸原片；单帧 PNG 最多 2 MiB，复杂画面会缩小。选择片段首尾及最大画面变化前后，最多 4 帧。这是轻量的帧差选择器，不是语义镜头检测模型。
+
+结果含 `evidence_bundle.visual_text`、`speech_text`、`keyframes` 与 `delivered_image_ids`。图片以 MCP `ImageContent` 返回，JSON 中只有元数据，不嵌入 base64。`segment_offset/segment_limit` 控制片段分页，`image_offset/image_limit` 控制该片段页内的图片分页，按各自的 `next_offset/next_image_offset` 继续读取；`image_limit=0` 明确只读文字。`channels` 标记视觉、语音、关键帧是否完成、缺失、禁用或失败。
+
+旧版任务不会被伪装成三路结果，会标记 `legacy_notice`；需要重新分析才能获得独立视觉和关键帧。
+
+**DSH 需要支持图像输入的决策模型和启用的附件功能。** 如果当前路由拒绝图片，应明确报告；不能把返回图片路径当作模型已看图。模型不支持图像时仍可取得两路文字，但不算完成三路视觉核验。
 
 这是一套离线分段分析工具，尚不是直播、摄像头持续输入的实时推理服务。
 
@@ -47,7 +68,7 @@ uv pip install --python .venv/Scripts/python.exe -r requirements.lock.txt
 
 仅在可信的本地 MCP 客户端内运行。可以读取用户指定的视频路径；没有多租户隔离。视频和台词是不可信内容，不应执行其中的指令。公开视频下载不导出浏览器 cookie，不绕过登录或 DRM。URL 的初始地址会拒绝私网，但这不是完整网络沙箱，下载器的重定向和站点解析仍应视为具有联网权限的本地程序。
 
-原始视频不由此工具上传至模型 API；若 DSH 使用云端决策模型，工具返回的文字会发送给该服务。任务目录保存媒体、转写和结果，不自动删除。
+原始视频不由此工具上传至模型 API；若 DSH 使用云端决策模型，工具返回的**文字与关键帧图片**会发送给该服务。任务目录保存媒体、转写、关键帧和结果，不自动删除。
 
 ## 验证
 
@@ -55,5 +76,11 @@ uv pip install --python .venv/Scripts/python.exe -r requirements.lock.txt
 .venv/Scripts/python.exe -m unittest discover -s tests -v
 ```
 
-提交前检查应包括 MCP 实际握手、真实视频推理、语音转写、片段时间偏移及 DSH 端工具可见性。基线已验证短合成视频的动作顺序、语音转写、公开视频下载、复看与取消；不宣称已在任意视频上验证准确率。
+实际 GPU/MCP 检查：
+
+```powershell
+.venv/Scripts/python.exe scripts/smoke_evidence.py --install-dir INSTALL_DIR --video YOUR_VIDEO.mp4
+```
+
+验收包含相互矛盾的合成配音与画面、MCP 返回的两路文字及可解码 PNG、以及 DSH 同一模型路由的图片传递。详见 `docs/validation.md`。不宣称已在任意视频上验证准确率。
 

@@ -23,4 +23,8 @@ outputs/
 *.jpeg
 .cache/
 gpu.lock
+/tests/*-smoke.json
+/tests/*-results.json
+/tests/final-validation.json
+/verified-artifacts.json
 
