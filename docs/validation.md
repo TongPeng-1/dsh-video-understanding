@@ -21,3 +21,13 @@ The isolated sessions do not message or modify the user's existing DSH chats. Th
 These checks establish the pipeline and one model route, not general video accuracy. Other DSH model routes can refuse images. Video event localization remains approximate; the lightweight frame-difference selector can miss semantically important but visually subtle moments. No live-camera/streaming backend or model replacement was added. Long videos and all supported video websites were not exhaustively tested.
 
 The installer code was reviewed and Python-compiled; the existing verified runtime was reused for this upgrade instead of downloading every model again. The current FFmpeg release URL is mutable; if upstream changes it, the installer will fail its pinned hash check rather than silently trust different bytes.
+
+## MCP package 0.3.0
+
+- Built a wheel and installed it into the existing Windows Python environment. Console help and dependency compatibility check pass (54 installed packages).
+- 17 unit tests pass, including explicit runtime-home propagation to detached workers, readiness polling and cleanup on failed model startup.
+- Started with zero llama-server processes, connected through the installed `dsh-video-mcp.exe`, discovered all five tools, and submitted an 8-second local video. The job automatically started llama and completed after the submitting MCP connection closed. Returned independent visual/speech text and four decoded PNG images. Local integration job: `1e5c8c70eb804d23858fdd02ab07f724` (media/results not published).
+- After completion, verified zero llama-server processes. A fresh installed-package MCP handshake, tool discovery and runtime-status call kept the process count at zero. The imported module location was confirmed under the installed environment's site-packages.
+- Updated DSH's existing video entry to the standard console command with an explicit runtime directory; existing tool prefix and mode rules are retained.
+
+This packaging test used the current verified runtime instead of downloading models again. Cold-start operation, normal completion cleanup and startup failure handling are checked; arbitrary process termination, all GPU/driver combinations and repeated-job concurrency stress are not exhaustively tested.

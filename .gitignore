@@ -28,3 +28,7 @@ gpu.lock
 /tests/final-validation.json
 /verified-artifacts.json
 
+
+build/
+dist/
+*.egg-info/

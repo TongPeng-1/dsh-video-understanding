@@ -6,10 +6,14 @@ from mcp.client.stdio import stdio_client
 
 async def main(args):
     root=pathlib.Path(args.install_dir).resolve()
-    params=StdioServerParameters(command=str(root/'.venv/Scripts/python.exe'),args=[str(root/'server.py')])
+    params=StdioServerParameters(command=args.command or str(root/'.venv/Scripts/dsh-video-mcp.exe'),args=['--home',str(root)])
     async with stdio_client(params) as (read,write):
         async with ClientSession(read,write) as client:
             await client.initialize()
+            tools=await client.list_tools();assert len(tools.tools)==5
+            runtime=await client.call_tool('video_runtime_status',{})
+            assert not runtime.isError
+            assert json.loads(runtime.content[0].text)['automatic_start'] is True
             r=await client.call_tool('analyze_video',{'source':str(pathlib.Path(args.video).resolve()),'question':'请只根据可见画面说明物体的颜色、场景和动作先后，不要猜测配音。','fps':2,'transcribe':True})
             job=json.loads(r.content[0].text)['job_id'];print('Submitted',job,flush=True)
     # A new connection checks that the job survives the submitting client closing.
@@ -40,5 +44,5 @@ async def main(args):
             print('PASS actual text + image MCP content; evidence saved locally.',flush=True)
 
 if __name__=='__main__':
-    parser=argparse.ArgumentParser();parser.add_argument('--install-dir',required=True);parser.add_argument('--video',required=True)
+    parser=argparse.ArgumentParser();parser.add_argument('--install-dir',required=True);parser.add_argument('--video',required=True);parser.add_argument('--command',help='Installed MCP executable; defaults to INSTALL_DIR/.venv/Scripts/dsh-video-mcp.exe')
     asyncio.run(main(parser.parse_args()))

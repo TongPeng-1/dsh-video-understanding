@@ -1,6 +1,6 @@
 # DSH Video Understanding
 
-给 DeepSeek Harness (DSH) 接入本地视频理解的 Windows MCP 服务。
+给 DeepSeek Harness (DSH) 及其他兼容 MCP 的模型客户端接入本地视频理解的 Windows MCP 服务。当前包版本 **0.3.0**，支持标准 stdio 传输。
 
 统一交付三种证据：**独立视觉文字 + 独立语音转写 + 带时间戳的真实关键帧图片**，由 DSH 的决策模型综合判断。视频模型保持 Qwen3-VL-4B，语音模型保持 faster-whisper small。
 
@@ -26,13 +26,26 @@
 
 ## 安装
 
-在项目目录创建 `.venv` 并安装依赖：
+克隆仓库后，在项目目录执行（保留已验证的依赖锁定）：
 
 ```powershell
 uv venv --python 3.13 .venv
 uv pip install --python .venv/Scripts/python.exe -r requirements.lock.txt
-.venv/Scripts/python.exe scripts/install_runtime.py
+uv pip install --python .venv/Scripts/python.exe --no-deps .
+.venv/Scripts/dsh-video-install-runtime.exe --home D:/DSH-Toolchain/video-understanding
 ```
+
+已有运行时和模型时跳过最后一步。也可以用 Python 3.13 的 `pip install git+https://github.com/TongPeng-1/dsh-video-understanding.git` 安装包；这会重新解析依赖，精确复现环境请使用上面的 lockfile。项目没有发布到 PyPI。
+
+统一启动命令：
+
+```powershell
+.venv/Scripts/dsh-video-mcp.exe --home D:/DSH-Toolchain/video-understanding
+```
+
+该命令的 stdout 是 MCP 协议，不是交互聊天窗口。客户端负责启动此进程。也可用 `python -m dsh_video_mcp --home ...`。`--home` 指向模型、运行时和任务目录，代码安装在 Python 包目录；未传时读取 `DSH_VIDEO_HOME`，再默认使用 `%LOCALAPPDATA%/dsh-video-understanding`。独立 worker 显式接收同一目录，使用 MCP 所在 Python 环境，不要求数据目录内有 `.venv`。
+
+兼容旧配置：仓库根目录 `server.py` 仍可直接运行，默认沿用相邻运行时目录；`scripts/install_runtime.py` 仍支持原来的源码安装方式。
 
 安装脚本只下载官方运行时和模型；大文件会先验证 SHA-256，再启用。模型许可证、FFmpeg 和 llama.cpp 等第三方许可证仍由各自项目提供，本仓库不重新分发其二进制。
 
@@ -41,6 +54,16 @@ uv pip install --python .venv/Scripts/python.exe -r requirements.lock.txt
 参考 `examples/desktop.patch.yml`，把 `INSTALL_DIR` 替换成实际目录后合入已有 desktop profile。先备份配置，不要覆盖其他插件。模型侧工具名会加上 `mcp__video__` 前缀。
 
 若 DSH 使用自定义工具可见性策略，应将该前缀加入综合模式、浏览器助手及所需模式的 allowlist。工具注册成功不等于所有专业模式都会自动可见。
+
+## 通用 MCP 客户端
+
+参考 `examples/mcp.json` 的 `mcpServers.video` 配置，将 command 改成已安装环境的 `Scripts/dsh-video-mcp.exe` 绝对路径，args 中的 `--home` 改成运行时目录。工具发现后即可调用；客户端需要支持图像工具结果，决策模型需要支持图像输入。
+
+## llama 按需自动启动
+
+无需事先手动打开 llama。连接 MCP、列出工具、查询状态和读取旧结果都不会启动模型。调用 `analyze_video` 或 `inspect_video_segment` 后，任务排到 GPU 时自动启动本任务的隐藏 llama-server，等待健康检查通过并确认支持视频输入后再推理。完成、取消或推理失败后自动关闭自有后端并释放显存；下次分析会重新启动。不会接管或终止用户手动启动的其他 llama 进程。
+
+首次调用需要等待权重载入。工具立即返回任务 ID，使用 `get_video_job` 轮询 `queued → loading_model → analyzing → completed` 等状态；启动失败会返回失败信息，详细日志在对应任务目录 `llama.log`。`video_runtime_status.ready` 表示依赖文件存在，不表示 GPU 模型已经加载或硬件一定兼容。安装运行时是一次独立步骤，不在工具调用时自动下载大模型。
 
 ## 工具
 
