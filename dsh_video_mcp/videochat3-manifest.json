@@ -1,0 +1,30 @@
+{
+  "repository": "MCG-NJU/VideoChat3-4B",
+  "revision": "9f6107bdfee9686dfe493444022f5cf79a1a6acf",
+  "files": {
+    "config.json": "d855aa0d9c6b6f223c9a293b9f1617a877a1ed0fb68a106ffcc084226ab3bf57",
+    "configuration_videochat3.py": "b2c6fe79f9fc9ac75466dc9be6cf2b95a530f6c1a06638bf87ae75289444d02e",
+    "modeling_videochat3.py": "853a76844c94612f350f222247983e734d70ebe37fc6778a4b3ea0e22bdc36f8",
+    "processing_videochat3.py": "2cf662dca1391ad133ef80dad5cbb6505a0e30e3564881f6174dc6633e2c3696",
+    "video_processing_videochat3.py": "bf33cff1b70465ed3cb1e9dc748504ab2a612f54037324068aab1b487189f6d1",
+    "videochat3_utils.py": "fd528475338cce9969f43b65df88faf0a72455ab0eeb59cad740733060cef5ab",
+    "inference_fast_vc3.py": "1357cea6ff00632f480728102b1f04bf0792306f7c45be173890e95a9eca5bd1",
+    "processor_config.json": "f98ed88117277cdf2f456a57ed1507a264079b53b1144b1d2ebfb4c4b928e899",
+    "preprocessor_config.json": "07da331d7669dff1e23296d8424faff30ad31f218913fe71c2017c2fc432b691",
+    "video_preprocessor_config.json": "ef1c765da73497a917138d4448c470074b5edc3cdb00b1c347ed0faabb1007e4"
+  },
+  "weights": {
+    "model-0001-others-save_rank0.safetensors": {
+      "size": 4252181336,
+      "sha256": "4c173466ec6a2c5e1544859021fbeac825067ccd54e80b887372d83b1c281654"
+    },
+    "model-0002-others-save_rank0.safetensors": {
+      "size": 4288942328,
+      "sha256": "322af91f1ba81f290cee20d66bf0841be4826091e6e942688243b38bbc26e597"
+    },
+    "model-0003-others-save_rank0.safetensors": {
+      "size": 403726088,
+      "sha256": "1c16eb013f0224c018db06148e28ee60bc1e2b47b1fffde0e311ed9debd63b90"
+    }
+  }
+}

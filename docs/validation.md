@@ -18,7 +18,7 @@ The isolated sessions do not message or modify the user's existing DSH chats. Th
 
 ## Limits
 
-These checks establish the pipeline and one model route, not general video accuracy. Other DSH model routes can refuse images. Video event localization remains approximate; the lightweight frame-difference selector can miss semantically important but visually subtle moments. No live-camera/streaming backend or model replacement was added. Long videos and all supported video websites were not exhaustively tested.
+These checks establish the pipeline and one model route, not general video accuracy. Other DSH model routes can refuse images. Video event localization remains approximate; the lightweight frame-difference selector can miss semantically important but visually subtle moments. The baseline did not add a live-camera/streaming backend or model replacement; the 0.4.0 checks below supersede this for file-based incremental inference. Long videos and all supported video websites were not exhaustively tested.
 
 The installer code was reviewed and Python-compiled; the existing verified runtime was reused for this upgrade instead of downloading every model again. The current FFmpeg release URL is mutable; if upstream changes it, the installer will fail its pinned hash check rather than silently trust different bytes.
 
@@ -31,3 +31,31 @@ The installer code was reviewed and Python-compiled; the existing verified runti
 - Updated DSH's existing video entry to the standard console command with an explicit runtime directory; existing tool prefix and mode rules are retained.
 
 This packaging test used the current verified runtime instead of downloading models again. Cold-start operation, normal completion cleanup and startup failure handling are checked; arbitrary process termination, all GPU/driver combinations and repeated-job concurrency stress are not exhaustively tested.
+
+
+## VideoChat3 0.4.0
+
+Test hardware: Windows, RTX 5060 Laptop 8 GB, 16 GB RAM. The visual model is the pinned official VideoChat3-4B checkpoint with NF4 language weights. CPU Whisper small remains independent. The main MCP environment and isolated GPU environment use Python 3.13 and 3.12 respectively.
+
+- 30 unit tests pass; Python compilation, wheel build, dependency compatibility and diff whitespace checks pass. The GPU environment contains 46 packages; pip-audit reported no known vulnerabilities after updating the initial vulnerable dependencies. This does not establish codec safety or general model accuracy.
+- Actual CUDA/NF4 execution passes. Partitioned attention matches the original block-diagonal calculation in CPU FP32 and GPU BF16 checks.
+- Caption mode uses four-second native-video windows plus two seconds of prior frames, preserving original timestamps. Previous generated answers are not fed back into the visual model. This fixes the sustained repeated-answer behavior found in the first streaming implementation. Compatibility preserves upstream normalization and video patch layout under Transformers 5.10.4.
+- A silent eight-second synthetic video shows a red square moving from left to right, followed by a blue circle. A direct runner test with a motion-focused question identifies this motion and order. The installed MCP smoke test identifies the color/shape order but omits the motion in its short caption, while transcribing the deliberately contradictory narration independently. It returns both text channels and four verified PNG blocks after closing the submitting connection.
+
+### Same-source full-pipeline timing
+
+| Measurement | Result |
+|---|---:|
+| Source duration (720p) | 214.785 s |
+| Previous Qwen full job, including ASR | 309.421 s |
+| VideoChat3 full job, including ASR/keyframes and MCP polling | 141.223 s |
+| First observation received, cold start | 28.536 s |
+| Model/import startup within new job | 19.844 s |
+| Completed observation windows | 54 |
+| Wall time / video duration | 0.658 |
+
+This single run is about 2.19 times faster than the prior job and finishes before the video's playback duration. It does not establish synchronized live playback or a universal throughput guarantee. Startup still delays the first observation. ASR and visual channels can complete at different times. The final packaging changes only generalize the same two-second look-back to other supported sampling rates and mark token-limited captions as incomplete; the full timing run used 2 FPS.
+
+Visual spot checks compare the original frames against observations of eating, character/scene changes, computer use, and a bicycle illustration appearing later on screen. The later windows continue to react to new frames. Some captions remain generic, miss gestures, or misread names and small text. A short caption per window is not an exhaustive action log; returned keyframes remain necessary for decision-model review. No formal accuracy score or broad multi-video benchmark is claimed. User media, filenames, transcripts, private configuration and raw traces are not published.
+
+- Actual MCP cancellation test passes: the requested job becomes cancelled, its launcher and backend Python descendants are gone, and the same MCP connection remains usable. A separate real process-tree fixture covers cancellation after descendants are already running.

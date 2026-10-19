@@ -1,12 +1,12 @@
 # DSH Video Understanding
 
-给 DeepSeek Harness (DSH) 及其他兼容 MCP 的模型客户端接入本地视频理解的 Windows MCP 服务。当前包版本 **0.3.0**，支持标准 stdio 传输。
+给 DeepSeek Harness (DSH) 及其他兼容 MCP 的模型客户端接入本地视频理解的 Windows MCP 服务。当前包版本 **0.4.0**，支持标准 stdio 传输。
 
-统一交付三种证据：**独立视觉文字 + 独立语音转写 + 带时间戳的真实关键帧图片**，由 DSH 的决策模型综合判断。视频模型保持 Qwen3-VL-4B，语音模型保持 faster-whisper small。
+统一交付三种证据：**独立视觉文字 + 独立语音转写 + 带时间戳的真实关键帧图片**，由 DSH 的决策模型综合判断。视觉后端支持 VideoChat3-4B NF4 流式主动响应，保留 Qwen3-VL-4B GGUF 作为可切换后端；语音模型保持 faster-whisper small。
 
 ```text
 同一视频与原始时间轴
-  ├─ 无声视频 → Qwen3-VL → 动作、场景、颜色及事件文字
+  ├─ 无声画面 → VideoChat3 / Qwen3-VL → 动作、场景、颜色及观察文字
   ├─ 音轨     → Whisper  → 配音文字与时间戳
   └─ 原视频   → 关键帧   → RGB PNG 图片与原视频时间
                      ↓
@@ -59,11 +59,29 @@ uv pip install --python .venv/Scripts/python.exe --no-deps .
 
 参考 `examples/mcp.json` 的 `mcpServers.video` 配置，将 command 改成已安装环境的 `Scripts/dsh-video-mcp.exe` 绝对路径，args 中的 `--home` 改成运行时目录。工具发现后即可调用；客户端需要支持图像工具结果，决策模型需要支持图像输入。
 
-## llama 按需自动启动
+## VideoChat3 流式后端
 
-无需事先手动打开 llama。连接 MCP、列出工具、查询状态和读取旧结果都不会启动模型。调用 `analyze_video` 或 `inspect_video_segment` 后，任务排到 GPU 时自动启动本任务的隐藏 llama-server，等待健康检查通过并确认支持视频输入后再推理。完成、取消或推理失败后自动关闭自有后端并释放显存；下次分析会重新启动。不会接管或终止用户手动启动的其他 llama 进程。
+安装主包和基础运行时后，可独立准备流式后端：
 
-首次调用需要等待权重载入。工具立即返回任务 ID，使用 `get_video_job` 轮询 `queued → loading_model → analyzing → completed` 等状态；启动失败会返回失败信息，详细日志在对应任务目录 `llama.log`。`video_runtime_status.ready` 表示依赖文件存在，不表示 GPU 模型已经加载或硬件一定兼容。安装运行时是一次独立步骤，不在工具调用时自动下载大模型。
+```powershell
+.venv/Scripts/dsh-video-install-streaming.exe --home D:/DSH-Toolchain/video-understanding
+```
+
+需要 `uv`；该命令创建独立的 Windows Python 3.12 环境 `.venv-videochat3`，按包内 lockfile 安装官方 CUDA 13.0 PyTorch、Transformers 和 bitsandbytes，下载固定 revision 的官方 `MCG-NJU/VideoChat3-4B`。原始 BF16 权重约 8.94 GB，运行时对语言层使用 NF4，视觉编码器和投影保留 BF16。下载后验证权重 SHA-256；每次执行前验证自定义模型代码和配置 SHA-256。模型代码不从未固定的远程 main 分支动态执行。
+
+安装默认不修改后端选择。确认推理可用后，把运行时目录的 `backend.json` 设置为 `{"backend":"videochat3"}`，或安装时加 `--activate`。切回 `{"backend":"qwen"}` 即使用旧后端，原有模型无需删除。没有此文件时默认 Qwen，兼容旧安装。
+
+VideoChat3 默认 `stream_mode=caption`，持续用中文描述当前窗口，避免宽泛总结请求在主动协议下持续静默。默认 2 FPS，每 4 秒视频形成一轮观察，使用原生视频输入和时间压缩，附带前 2 秒画面作为上下文。各轮不回填先前生成的回答，降低错误描述自我强化的风险。若要等待某个具体事件，可传 `stream_mode=proactive`，按官方 `Silence / Standby / Response` 协议每秒观察一轮、保留最近 8 轮，必要时提高下一轮图像预算。持续描述会在一句话完成时停止生成，并设置字符和 token 上限；截断情况标记为不确定性。每轮完成后即保存结果，MCP 客户端可在整段完成前获取文字和关键帧。`stream_cursor` 是下一次获取新观察时使用的 `segment_offset`；`stream_active` 表示任务还可能产生新结果。即使本次没有新片段，也应保留该 cursor 等待后续结果。
+
+这是连续输入有序帧、带有限历史的模型流式观察。为兼容已修复安全公告的 Transformers 5.10.4，显式恢复上游 checkpoint 的输出层权重绑定，并适配新版生成输入和视频预处理接口；预处理保留固定模型的归一化、分块及时间戳逻辑。视觉 SDPA 按原有注意力分区逐块执行，避免构造整个窗口的巨大块对角掩码；CPU FP32 与 GPU BF16 数值对照检查验证其等价性。官方示例会重新处理滑动窗口，并不自动复用所有历史视觉缓存；本适配器也不宣称无限视频记忆或必然实时。超过窗口的内容依靠已保存的观察文字供决策模型回顾。`Silence/Standby` 不是“画面没有事件”的证明，未带正确状态标签的输出会明确标记不确定性。流式观察的时间表示输入窗口，不能当作精确动作起止时间。
+
+输入目前仍是本地视频文件或先下载的公开 URL，尚未接入浏览器播放中的画面、摄像头或直播采集。输出通过 MCP 轮询增量读取，不是要求客户端解析额外 SSE 协议。ASR 仍独立处理指定范围，可能比第一轮视觉结果晚到；检查通道状态后再作完整判断。
+
+## 按需自动启动
+
+无需手动打开推理程序。连接 MCP、列出工具、查询状态和读取旧结果都不会加载 GPU 模型。分析任务排到 GPU 时，自动启动所选后端；VideoChat3 在独立子进程加载权重，Qwen 启动隐藏 llama-server 并等待健康检查。完成、取消或推理失败后关闭本任务的后端，下一次任务再加载。Windows 虚拟环境启动器的整个自有子进程树会一并清理。为减少后台调度造成的延迟，推理进程临时请求 HighQoS 和定时器精度，进程退出后结束，不更改系统电源方案。
+
+首次调用需要等待权重载入。工具立即返回任务 ID，使用 `get_video_job` 轮询进度。启动失败会返回失败信息；日志分别在任务目录的 `videochat3.log` 或 `llama.log`。`video_runtime_status.ready` 表示依赖文件存在，不表示 GPU 模型已加载或硬件一定兼容。工具调用不会自动下载大模型。
 
 ## 工具
 
@@ -75,9 +93,9 @@ uv pip install --python .venv/Scripts/python.exe --no-deps .
 | cancel_video_job | 请求取消任务 |
 | video_runtime_status | 检查依赖和最近任务 |
 
-任务通过独立隐藏 Windows worker 执行，提交的 MCP 连接断开后仍可运行。GPU 任务串行，完成后卸载模型。单任务范围最多 30 分钟；复看最多 60 秒。默认 2 FPS、448 像素上限，无法保证瞬间动作、小字或逐帧时间精度。
+任务通过独立隐藏 Windows worker 执行，提交的 MCP 连接断开后仍可运行。GPU 任务串行，完成后卸载模型。单任务范围最多 30 分钟；复看最多 60 秒。默认 2 FPS。Qwen 视频推理最长边 448；VideoChat3 使用受限像素预算和滑动窗口，无法保证瞬间动作、小字或逐帧时间精度。
 
-448 像素限制仅用于视频模型推理。关键帧从原视频重新解码，最长边最高 1280 像素，不放大小尺寸原片；单帧 PNG 最多 2 MiB，复杂画面会缩小。选择片段首尾及最大画面变化前后，最多 4 帧。这是轻量的帧差选择器，不是语义镜头检测模型。
+这些低分辨率预算仅用于视频模型推理。关键帧从原视频重新解码，最长边最高 1280 像素，不放大小尺寸原片；单帧 PNG 最多 2 MiB，复杂画面会缩小。选择片段首尾及最大画面变化前后，最多 4 帧。这是轻量的帧差选择器，不是语义镜头检测模型。
 
 结果含 `evidence_bundle.visual_text`、`speech_text`、`keyframes` 与 `delivered_image_ids`。图片以 MCP `ImageContent` 返回，JSON 中只有元数据，不嵌入 base64。`segment_offset/segment_limit` 控制片段分页，`image_offset/image_limit` 控制该片段页内的图片分页，按各自的 `next_offset/next_image_offset` 继续读取；`image_limit=0` 明确只读文字。`channels` 标记视觉、语音、关键帧是否完成、缺失、禁用或失败。
 
@@ -85,7 +103,7 @@ uv pip install --python .venv/Scripts/python.exe --no-deps .
 
 **DSH 需要支持图像输入的决策模型和启用的附件功能。** 如果当前路由拒绝图片，应明确报告；不能把返回图片路径当作模型已看图。模型不支持图像时仍可取得两路文字，但不算完成三路视觉核验。
 
-这是一套离线分段分析工具，尚不是直播、摄像头持续输入的实时推理服务。
+可对已有文件逐轮产生流式结果；是否跟得上播放需要在实际硬件和视频上测量，不能从模型名称推定。
 
 ## 数据与权限
 
