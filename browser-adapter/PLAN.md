@@ -1,0 +1,7 @@
+# Browser companion acceptance criteria
+
+Explicitly started in the user's DSH browser conversation. Observe the controlled HTML5 video as it plays, using repeated bounded captures and one resident local VideoChat3 process. Independently transcribe captured audio; deliver visual text, ASR text and real keyframes to the selected DSH model. Let an auxiliary decision call remain silent or request a short natural reaction in the owning conversation. Never use another conversation or expose internal chain of thought.
+
+Preserve extension sharing/approval and controlled-tab boundaries. No auto-play, seek, browser cookie extraction, DRM bypass or unrelated desktop capture. A pause, source change, seek or navigation invalidates stale responses. Queue only latest evidence; drop lagged work rather than replaying late comments. Stop/dispose closes capture and model processes. Startup latency and inference lag must be measured, not called zero-delay.
+
+Implementation: extension content video module; existing background read authorization; bridge-owned companion controller and auxiliary LLM gate using the owner's selected route; Python stdio watch worker and resident VideoChat3 runner branch. Use existing dependencies and a reproducible backed-up installer. Test real browser recording, GPU residency over multiple windows, independent audio/keyframes, seek/pause/stop and stale queue behavior. Verify actual installed browser integration; document if extension reload or live connection cannot be completed.
