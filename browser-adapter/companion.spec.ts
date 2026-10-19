@@ -1,9 +1,20 @@
 import { describe, expect, it } from 'vitest'
 import type { Context } from '@deepseek-ai/cordis'
-import { checkedVideoState, parseDecision, validEvidence, registerVideoCompanion } from '../src/companion.ts'
+import { checkedVideoState, parseDecision, publicationState, replyRejection, validEvidence, registerVideoCompanion } from '../src/companion.ts'
 import type { BridgeServer } from '../src/server.ts'
 
 describe('companion freshness and turn isolation', () => {
+  it('reuses only the immediate handoff preflight and keeps the eight-second limit', () => {
+    const state = { page: 'https://fixture.test', source: 'blob:media', index: 0, currentTime: 17, paused: false, ended: false, rate: 1 }
+    const identity = JSON.stringify([state.page, state.source])
+    expect(publicationState(state, 1000, 1200)?.currentTime).toBe(17.2)
+    expect(publicationState(state, 1000, 1251)).toBeUndefined()
+    expect(replyRejection(publicationState(state, 1000, 1200), identity, 1, 1, 10, false, true)).toBeUndefined()
+    expect(replyRejection({ ...state, currentTime: 18.1 }, identity, 1, 1, 10, false, true)).toBe('evidence_expired')
+    expect(replyRejection(state, identity, 1, 2, 10, false, true)).toBe('playback_generation_changed')
+    expect(replyRejection({ ...state, paused: true }, identity, 1, 1, 10, false, true)).toBe('paused')
+    expect(replyRejection(state, identity, 1, 1, 10, false, false)).toBe('model_route_changed')
+  })
   it('distinguishes a stripped or stale adapter reply from an empty media source', () => {
     const state = { page: 'https://fixture.test', source: '', index: 0, currentTime: 0, paused: true, ended: false, rate: 1 }
     expect(() => checkedVideoState({ text: 'Selected video state.' })).toThrow('protocol mismatch')
