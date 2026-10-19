@@ -4,7 +4,7 @@ import unittest
 from unittest.mock import patch
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-spec = importlib.util.spec_from_file_location('video_server', ROOT / 'server.py')
+spec = importlib.util.spec_from_file_location('video_server', ROOT / 'dsh_video_mcp/server.py')
 video = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(video)
 

@@ -5,8 +5,8 @@
       config:
         serverName: video
         transport: stdio
-        command: INSTALL_DIR/.venv/Scripts/python.exe
+        command: INSTALL_DIR/.venv/Scripts/dsh-video-mcp.exe
         args:
-          - INSTALL_DIR/server.py
+          - --home
+          - INSTALL_DIR
         toolCallTimeoutMs: 120000
-

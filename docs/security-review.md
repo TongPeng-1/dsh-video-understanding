@@ -58,3 +58,11 @@ Media and ASR remain untrusted content. No media-derived string is used as execu
 - No exhaustive concurrency stress test, malicious-codec corpus or all-provider image compatibility test was performed.
 - The frame-difference selector and VLM can miss events or misestimate times. That is a quality limit, not proof that returned evidence is complete.
 - Hash checks protect against accidental alteration within the tool's workflow; a local actor with permission to rewrite both code and task manifests is outside this trusted-local threat model.
+
+## MCP package 0.3.0 review
+
+Baseline: `e83a371ff05ee8c2d2f491ab33df870987ae6ca2`. Reviewed the server/installer relocation, compatibility launchers, package metadata, client examples and worker launch path. History/blame confirms per-job automatic llama startup, loopback-only binding, a random API key and GPU serialization already existed; they remain in place. New metadata pins direct dependencies to the already tested lockfile versions. No additional runtime dependency was introduced. Build tooling uses setuptools in an isolated build environment; no advisory scan was run.
+
+Direct production callers: `configure_home` 1 (`main`), `worker_command` 1 (`submit`), `start_llama` 1 (`worker`), `main` 3 launch surfaces (console entry, module, compatibility script). The worker now executes the installed implementation using the current interpreter and passes the runtime directory explicitly, rather than assuming a virtualenv and source file in the data directory. Its argv still uses `subprocess.list2cmdline` with no shell. User-selected runtime directories are trusted configuration, not remotely supplied tool parameters. Existing input checks, image integrity checks and download checks are retained.
+
+Reviewed failure modes include a data path containing spaces, worker survival after disconnect, backend unavailability, startup health delay and cleanup. Tests cover worker argv and backend startup failure/readiness; real installed-wheel MCP execution covers discovery, detached worker, GPU loading, evidence delivery and automatic shutdown. No new confirmed security finding. Existing SSRF, local filesystem trust and codec/dependency coverage limitations above still apply. Hard process kills/OS crashes are outside normal completion cleanup guarantees.
