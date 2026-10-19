@@ -15,6 +15,18 @@ declare module '@deepseek-ai/dsh-llm' {
   interface MessageSourceMap { 'video-companion': { kind: 'video-companion'; watchId: string; epoch: number } & ContextFormed }
 }
 type State = { page: string; source: string; index: number; currentTime: number; paused: boolean; ended: boolean; rate: number }
+export function checkedVideoState(reply: unknown): State {
+  const value = reply as { videoAdapter?: unknown; videoState?: State } | null
+  if (value?.videoAdapter !== 'dsh-video-companion/1' || !value.videoState) {
+    throw new Error('Browser video adapter protocol mismatch: current extension did not return video state. Reload the existing DSH extension and restart DSH before retrying; this does not establish a site/player limitation.')
+  }
+  const state = value.videoState
+  if (typeof state.source !== 'string' || typeof state.page !== 'string' || !Number.isSafeInteger(state.index) || state.index < 0
+    || !Number.isFinite(state.currentTime) || !Number.isFinite(state.rate) || typeof state.paused !== 'boolean' || typeof state.ended !== 'boolean') {
+    throw new Error('Browser video adapter returned invalid playback state.')
+  }
+  return state
+}
 type Clip = { data: string; mime: string; start: number; end: number; audio: boolean; state: State }
 type Evidence = { type: string; seq: number; epoch: number; start: number; end: number; visual_text: string;
   speech: { status: string; text: string }; images: { mediaType: 'image/jpeg'; data: string; offset: number }[] }
@@ -74,13 +86,15 @@ class Companion {
   constructor(readonly ctx: Context, readonly bridge: BridgeServer, readonly agent: Agent,
     readonly home: string, readonly frame: number, public videoIndex: number | undefined, readonly persona = '') { this.storage = join(home, 'watch', this.id) }
   async request(name: string, args: Record<string, unknown>) {
-    return await this.bridge.requestTool(name, { companionId: this.id, frame: this.frame, ...(this.videoIndex === undefined ? {} : { videoIndex: this.videoIndex }), ...args },
+    const result = await this.bridge.requestTool(name, { companionId: this.id, frame: this.frame, ...(this.videoIndex === undefined ? {} : { videoIndex: this.videoIndex }), ...args },
       this.abort.signal, 90000, String(this.agent.id)) as { videoState?: State; videoClip?: Clip }
+    if (name === 'browser_video_info') checkedVideoState(result)
+    return result
   }
   async start() {
     await mkdir(this.storage, { recursive: true })
     const first = await this.request('browser_video_info', { watchConsent: true })
-    if (!first.videoState?.source) throw new Error('No accessible HTML5 video in the selected frame.')
+    if (!first.videoState?.source) throw new Error('The selected HTML5 video exists but its media source is not ready. This is not evidence of shadow DOM or a protected player. Do not retry unchanged state or silently switch to full-video analysis.')
     if (this.abort.signal.aborted) throw new Error('Companion stopped before startup.')
     if (first.videoState.rate !== 1) throw new Error('Companion currently requires 1x playback.')
     this.videoIndex = first.videoState.index
@@ -233,7 +247,7 @@ export function registerVideoCompanion(ctx: Context, bridge: BridgeServer, home:
     yield* streamReaction(valid ? prepared.text : '')
   }, { global: true })
   const disposeTool = ctx.tools.register(defineTool({ name: 'browser_watch_video',
-    description: '开启、查看或停止当前浏览器视频陪看。start 仅在用户要求一起看/陪看时调用；持续观察当前播放位置，偶尔自然接话，暂停/拖动时丢弃旧回应。仅捕获所选HTML5视频，无自动播放、无DRM绕过。文字、语音和关键帧可发送至当前模型服务。stop释放推理进程。最多30分钟，1倍速。',
+    description: '开启、查看或停止当前浏览器视频陪看。start 仅在用户要求一起看/陪看时调用；持续观察当前播放位置，偶尔自然接话，暂停/拖动时丢弃旧回应。仅捕获所选HTML5视频，无自动播放、无DRM绕过。文字、语音和关键帧可发送至当前模型服务。stop释放推理进程。最多30分钟，1倍速。启动失败时按实际错误说明；没有新证据不重复start、不猜测封装/DRM原因、不自动改为整段下载分析。',
     parameters: { action: { type: 'string', enum: ['start', 'status', 'stop'], required: true }, frame: { type: 'number' }, videoIndex: { type: 'number' } },
     output: { schema: { type: 'object', additionalProperties: true }, render: (_a, v) => [{ type: 'text', text: JSON.stringify(v) }] },
     isConcurrencySafe: () => false,
