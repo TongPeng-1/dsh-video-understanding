@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dsh-video-understanding-mcp"
-version = "0.5.2"
+version = "0.5.3"
 description = "Windows local video MCP: independent visual text, speech transcription and keyframe images"
 readme = "README.md"
 requires-python = ">=3.13,<3.14"

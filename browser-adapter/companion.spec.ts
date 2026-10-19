@@ -4,13 +4,16 @@ import { checkedVideoState, parseDecision, publicationState, replyRejection, val
 import type { BridgeServer } from '../src/server.ts'
 
 describe('companion freshness and turn isolation', () => {
-  it('reuses only the immediate handoff preflight and keeps the eight-second limit', () => {
+  it('keeps separate observation and bounded reaction budgets during handoff', () => {
     const state = { page: 'https://fixture.test', source: 'blob:media', index: 0, currentTime: 17, paused: false, ended: false, rate: 1 }
     const identity = JSON.stringify([state.page, state.source])
     expect(publicationState(state, 1000, 1200)?.currentTime).toBe(17.2)
     expect(publicationState(state, 1000, 1251)).toBeUndefined()
     expect(replyRejection(publicationState(state, 1000, 1200), identity, 1, 1, 10, false, true)).toBeUndefined()
-    expect(replyRejection({ ...state, currentTime: 18.1 }, identity, 1, 1, 10, false, true)).toBe('evidence_expired')
+    expect(validEvidence({ epoch: 1, end: 10 } as Parameters<typeof validEvidence>[0], 1, 18.1)).toBe(false)
+    expect(replyRejection({ ...state, currentTime: 18.1 }, identity, 1, 1, 10, false, true)).toBeUndefined()
+    expect(replyRejection({ ...state, currentTime: 26.1 }, identity, 1, 1, 10, false, true)).toBe('evidence_expired')
+    expect(replyRejection(state, identity, 1, 1, 10, false, true, 1000, 17001)).toBe('evidence_expired')
     expect(replyRejection(state, identity, 1, 2, 10, false, true)).toBe('playback_generation_changed')
     expect(replyRejection({ ...state, paused: true }, identity, 1, 1, 10, false, true)).toBe('paused')
     expect(replyRejection(state, identity, 1, 1, 10, false, false)).toBe('model_route_changed')
