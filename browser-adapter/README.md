@@ -4,7 +4,7 @@
 
 ## 安装
 
-先按仓库 README 安装 0.5.0 主包、基础运行时及 VideoChat3 后端。适配器固定使用该运行时下 `.venv/Scripts/python.exe` 和 `.venv-videochat3/Scripts/python.exe`，因此主包需要装进这个 `.venv`。还需要已经安装的 DSH 浏览器源码工作区及其现有 pnpm 开发依赖；脚本不会安装依赖。
+先按仓库 README 安装 0.5.1 主包、基础运行时及 VideoChat3 后端。适配器固定使用该运行时下 `.venv/Scripts/python.exe` 和 `.venv-videochat3/Scripts/python.exe`，因此主包需要装进这个 `.venv`。还需要已经安装的 DSH 浏览器源码工作区及其现有 pnpm 开发依赖；脚本不会安装依赖。
 
 从仓库检出目录执行：
 
@@ -17,6 +17,8 @@ python scripts/install_browser_adapter.py --home D:/DSH-Toolchain/video-understa
 脚本备份被修改的源文件和配置，构建 bridge 与扩展，更新现有稳定扩展目录的 background.js/content.js，并在 profile 中指向带内容哈希的新模块。备份位于 profile/backups/video-companion-*，manifest.json 记录源文件和配置位置；扩展 bundle 另有 extension-* 备份。脚本不是事务安装器；构建失败时应先检查备份和错误再处理。
 
 已经打开的浏览器需要重新加载现有 DSH 扩展或关闭后重开。文件复制成功不代表当前浏览器已使用新代码；应在浏览器助手中成功调用工具并取得观察结果后确认。卸载时按备份恢复配置、源码与两个扩展 bundle，再重新构建和加载；不要覆盖其他更新后才修改的配置。
+
+若更新后现有会话仍显示旧工具说明或旧引导，应完全退出并重启 DSH，再测试。0.5.1 的私有视频状态响应带 `videoAdapter=dsh-video-companion/1`；主控制器要求该标记和完整状态，以便识别旧 bundle 或状态字段在传输中丢失。出现协议不匹配时，先重载现有扩展和 DSH；不要通过猜测 videoIndex 或反复启动来代替修复。不需要添加浏览器权限。
 
 ## 运行约束
 
@@ -31,4 +33,4 @@ python scripts/install_browser_adapter.py --home D:/DSH-Toolchain/video-understa
 
 已验证真实浏览器 VP8/Opus 片段、暂停拒绝及拖动失效；实际 GPU 常驻处理多窗口、独立语音与三张可解码图片；实际 DSH 路由的图片决策和原生对话接话。持续控制器集成测试使用模拟浏览器传输注入实际录制片段，并非 B 站全链路测试。
 
-真实 B 站页面的最终侧栏联调待完成：本轮 Edge 可列出视频标签页，但控制连接无法附加调试器，未能提交陪看指令并观察结果。不能将文件部署或上述分项通过等同于已验证所有站点。详细测量见 [验证记录](../docs/validation.md)。
+真实 B 站首次侧栏调用已由用户触发，结果未成功：启动工具反复返回状态不可用，DSH 随后改为整段分析。连接恢复后检查发现页面上有普通 video 元素及有效 blob 源，不能归因于封装组件。运行中的 bundle/状态传输不匹配仍待重载后定位。0.5.1 补充协议握手、原始字段保留测试和失败后不擅自转整段分析的指导。重载后成功采集、持续回应及真实页面暂停/拖动仍待验证。详细测量见 [验证记录](../docs/validation.md)。

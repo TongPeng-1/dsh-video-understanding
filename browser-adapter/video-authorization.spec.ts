@@ -17,6 +17,18 @@ describe('video sharing boundary', () => {
     expect(prompt?.kind).toBe('read'); expect(prompt?.origins).toEqual(['https://fixture.test'])
     expect(prompt?.summary).toContain('audio')
   })
+  it('preserves private video state and clip fields through real background dispatch', async () => {
+    const tab = { id: 11, url: 'https://fixture.test/watch' }
+    const state = { source: 'blob:https://fixture.test/media', currentTime: 3 }
+    const clip = { data: 'bounded-fixture', start: 1, end: 3 }
+    const result = { text: 'private video result', videoAdapter: 'dsh-video-companion/1', videoState: state, videoClip: clip }
+    vi.stubGlobal('chrome', { tabs: { sendMessage: vi.fn(async () => ({ ok: true, result })) },
+      webNavigation: { getAllFrames: vi.fn(async () => [{ frameId: 0, parentFrameId: -1, documentId: 'raw-document', url: tab.url }]) } })
+    for (const name of ['browser_video_info', 'browser_capture_video']) {
+      const answer = await dispatchToolCall({ id: 'raw-video', name, args: {} }, 'auto', undefined, undefined, undefined, tab)
+      expect(answer.ok).toBe(true); expect(answer.result).toEqual(result)
+    }
+  })
   it('approves one watch once, then refuses a new document without another prompt', async () => {
     let documentId = 'document-one'
     const tab = { id: 10, url: 'https://fixture.test/watch' }
