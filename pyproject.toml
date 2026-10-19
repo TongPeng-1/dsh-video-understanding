@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools>=77,<81"]
+requires = ["setuptools==84.0.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "dsh-video-understanding-mcp"
-version = "0.3.0"
+version = "0.4.0"
 description = "Windows local video MCP: independent visual text, speech transcription and keyframe images"
 readme = "README.md"
 requires-python = ">=3.13,<3.14"
@@ -18,9 +18,13 @@ classifiers = ["Operating System :: Microsoft :: Windows", "Programming Language
 [project.scripts]
 dsh-video-mcp = "dsh_video_mcp.server:main"
 dsh-video-install-runtime = "dsh_video_mcp.install_runtime:main"
+dsh-video-install-streaming = "dsh_video_mcp.install_videochat3:main"
 
 [project.urls]
 Repository = "https://github.com/TongPeng-1/dsh-video-understanding"
 
 [tool.setuptools]
 packages = ["dsh_video_mcp"]
+
+[tool.setuptools.package-data]
+dsh_video_mcp = ["videochat3-manifest.json", "requirements-videochat3.lock.txt"]
