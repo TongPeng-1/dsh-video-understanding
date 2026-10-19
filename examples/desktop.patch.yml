@@ -1,0 +1,12 @@
+# Merge into the existing desktop profile; replace INSTALL_DIR first.
+- insert:
+    - id: mcp-local-video
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: video
+        transport: stdio
+        command: INSTALL_DIR/.venv/Scripts/python.exe
+        args:
+          - INSTALL_DIR/server.py
+        toolCallTimeoutMs: 120000
+
