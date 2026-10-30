@@ -8,12 +8,13 @@ version = "0.5.3"
 description = "Windows local video MCP: independent visual text, speech transcription and keyframe images"
 readme = "README.md"
 requires-python = ">=3.13,<3.14"
+license = {file = "LICENSE"}
 dependencies = [
   "mcp==1.30.0", "httpx==0.28.1", "pillow==13.0.0",
   "faster-whisper==1.2.1", "av==16.1.0", "yt-dlp==2026.8.19",
   "huggingface-hub==2.2.0", "pywin32==312; sys_platform == 'win32'",
 ]
-classifiers = ["Operating System :: Microsoft :: Windows", "Programming Language :: Python :: 3.13"]
+classifiers = ["Operating System :: Microsoft :: Windows", "Programming Language :: Python :: 3.13", "License :: OSI Approved :: MIT License"]
 
 [project.scripts]
 dsh-video-mcp = "dsh_video_mcp.server:main"
