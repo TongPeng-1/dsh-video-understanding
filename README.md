@@ -24,7 +24,24 @@
 - Qwen3-VL-4B-Instruct Q4_K_M、Q8_0 投影；faster-whisper small CPU INT8。
 - 模型权重、运行时、任务媒体、日志、账号配置均不在仓库中。
 
-## 安装
+## 快速安装
+
+前置条件两个：Python 3.13 + `uv`（`pip install uv`），`ffmpeg` 在 PATH（`winget install ffmpeg`）。
+
+```powershell
+git clone https://github.com/TongPeng-1/dsh-video-understanding.git
+cd dsh-video-understanding
+uv venv --python 3.13 .venv
+uv pip install --python .venv/Scripts/python.exe -r requirements.lock.txt
+uv pip install --python .venv/Scripts/python.exe --no-deps .
+.venv/Scripts/dsh-video-install-runtime.exe --home D:/DSH-Toolchain/video-understanding
+```
+
+`dsh-video-install-runtime.exe` 自动完成剩余一切（约 4 GB 下载）：llama.cpp b11669 CUDA 13.4（github.com/ggml-org/llama.cpp release）、CUDA 运行库、Qwen3-VL-4B GGUF（huggingface.co/Qwen/Qwen3-VL-4B-Instruct-GGUF）、faster-whisper small，全部逐文件校验 SHA-256 后启用。接入 DSH 用下面的「接入 DSH」；启动命令见下节。
+
+模型不随仓库/Release 分发：体积大（VideoChat3 另有约 9 GB），且官方源头的固定 revision + SHA-256 校验比镜像打包更可信。安装脚本记录的来源与校验值见 `verified-artifacts.json`；需要 VideoChat3 流式后端再执行下文的 `dsh-video-install-streaming.exe`（额外约 5 GB PyTorch 环境）。
+
+## 安装（手动/自定义）
 
 克隆仓库后，在项目目录执行（保留已验证的依赖锁定）：
 
