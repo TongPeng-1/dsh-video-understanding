@@ -1,8 +1,8 @@
 {
   "mcpServers": {
     "video": {
-      "command": "D:/DSH-Toolchain/video-understanding/.venv/Scripts/dsh-video-mcp.exe",
-      "args": ["--home", "D:/DSH-Toolchain/video-understanding"]
+      "command": "INSTALL_DIR/.venv/Scripts/dsh-video-mcp.exe",
+      "args": ["--home", "INSTALL_DIR"]
     }
   }
 }
