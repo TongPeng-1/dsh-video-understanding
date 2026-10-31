@@ -121,11 +121,11 @@ VideoChat3 默认 `stream_mode=caption`，持续用中文描述当前窗口，�
 | analyze_video | 提交本地视频或公开可下载的视频 URL |
 | get_video_job | 一次取得两路文字、通道状态与最多 4 张真实 PNG 图片 |
 | inspect_video_segment | 复看指定原视频范围；`detail=true` 时返回逐字长答案（图表/表格/画面文字） |
-| get_video_frame | 任意时间戳（单个或最多 8 个）从原视频直抽全分辨率 PNG，模型自己读像素 |
+| get_video_frame | 任意时间戳（单个或最多 8 个）从原视频直抽 PNG；`max_edge` 最高 1920，`region=[x1,y1,x2,y2]` 归一化裁剪放大看图表/文字 |
 | cancel_video_job | 请求取消任务 |
 | video_runtime_status | 检查依赖和最近任务 |
 
-**自主看片协议**（写入 MCP instructions，由客户端模型执行）：caption 每窗一句话是有意的 token 经济设计，只当索引用；遇到图表、表格、数字、画面文字，直接 `get_video_frame` 抽原帧自己读（任意时间戳、不走 GPU、瞬时返回），需要动作/因果/多秒上下文时用 `inspect_video_segment(..., detail=true)` 提具体问题拿长答案。由 agent 自主决定看哪里、看几遍，结论必须落到实际帧上。
+**自主看片协议**（写入 MCP instructions，由客户端模型执行）：caption 每窗一句话是有意的 token 经济设计，只当索引用；遇到图表、表格、数字、画面文字，直接 `get_video_frame` 抽原帧自己读（任意时间戳、不走 GPU、瞬时返回；可 `region` 裁剪放大图表）。**信任层级：帧图是画面文字与数字的唯一事实来源；caption 和 detail 都是解释，可能读错或编造（实测 4B 模型会把模糊霓虹招牌"读成"具体字），引用任何文字/数字前必须用帧核对。**需要动作/因果/多秒上下文时用 `inspect_video_segment(..., detail=true)` 提具体问题拿长答案。由 agent 自主决定看哪里、看几遍，结论必须落到实际帧上。
 
 任务通过独立隐藏 Windows worker 执行，提交的 MCP 连接断开后仍可运行。GPU 任务串行，完成后卸载模型。单任务范围最多 30 分钟；复看最多 60 秒。默认 2 FPS。Qwen 视频推理最长边 448；VideoChat3 使用受限像素预算和滑动窗口，无法保证瞬间动作、小字或逐帧时间精度。
 

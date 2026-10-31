@@ -71,5 +71,20 @@ class FrameArgumentTests(unittest.TestCase):
             self.assertTrue(any('no decodable frame' in b.text for b in result.content if getattr(b,'type',None)=='text'))
             self.assertFalse(any(getattr(b,'type',None)=='image' for b in result.content))
 
+    def test_region_crop_and_max_edge(self):
+        with patch.object(video,'run_bytes',return_value=self.png):
+            result=video.get_video_frame_result(self.job_id,3.0,max_edge=1920,region=[0.25,0.25,0.75,0.75])
+            meta=result.structuredContent['frames'][0]
+            # 64x48 source cropped to the middle half -> 32x24, then capped by max_edge (no upscale).
+            self.assertEqual((meta['width'],meta['height']),(32,24))
+            self.assertEqual(meta['region'],[0.25,0.25,0.75,0.75])
+            self.assertEqual(meta['source_width'],64)
+            for bad_region in ([0.5,0.5,0.3,0.6],[-0.1,0,1,1],[0,0,1],[0,0,0.01,1],['a',0,1,1]):
+                with self.assertRaises(ValueError):
+                    video.get_video_frame_result(self.job_id,1.0,region=bad_region)
+            for bad_edge in (100,4000,1280.5,True):
+                with self.assertRaises(ValueError):
+                    video.get_video_frame_result(self.job_id,1.0,max_edge=bad_edge)
+
 if __name__ == '__main__':
     unittest.main()
