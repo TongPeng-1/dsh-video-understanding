@@ -74,10 +74,12 @@ def run(request):
                         self.reason=caption_stop_reason(text)
                         return self.reason is not None
                 limiter=OneCaption();caption=request.get('stream_mode','caption')=='caption' and not request.get('detail')
+                # 4B greedy decoding loops on dense signage; detail mode needs anti-repetition guards.
+                guard={'repetition_penalty':1.25,'no_repeat_ngram_size':12} if request.get('detail') else {}
                 t=time.monotonic()
                 with torch.inference_mode():
                     out=model.generate(**inputs,max_new_tokens=min(max_tokens,48) if caption else max_tokens,do_sample=False,use_cache=True,temperature=1.0,top_p=1.0,top_k=0,
-                        stopping_criteria=StoppingCriteriaList([limiter]) if caption else None)
+                        stopping_criteria=StoppingCriteriaList([limiter]) if caption else None,**guard)
                 torch.cuda.synchronize();generation=time.monotonic()-t
                 count=out.shape[1]-prefix
                 if caption and limiter.reason is None and count>=min(max_tokens,48):limiter.reason='token_budget'
