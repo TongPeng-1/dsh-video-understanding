@@ -40,7 +40,8 @@ def observations(root,path,source,request,start,end,on_status):
     if not python.is_file() or not (model/'model.safetensors.index.json').is_file():
         raise RuntimeError('VideoChat3 runtime is not installed; run dsh-video-install-streaming --home <runtime-directory>')
     settings={'source':str(source),'model_dir':str(model),'question':request['question'],
-              'start_seconds':start,'end_seconds':end,'fps':request['fps'],'stream_mode':request.get('stream_mode','caption')}
+              'start_seconds':start,'end_seconds':end,'fps':request['fps'],'stream_mode':request.get('stream_mode','caption'),
+              'detail':bool(request.get('detail'))}
     request_file=path/'stream-request.json';request_file.write_text(json.dumps(settings,ensure_ascii=False),encoding='utf-8')
     env=os.environ.copy();env.update(HF_HUB_OFFLINE='1',TRANSFORMERS_OFFLINE='1',PYTHONIOENCODING='utf-8')
     messages=queue.Queue(maxsize=4);proc=None
